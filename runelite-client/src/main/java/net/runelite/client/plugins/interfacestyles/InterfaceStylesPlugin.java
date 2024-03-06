@@ -30,6 +30,7 @@ import com.google.inject.Provides;
 import java.awt.image.BufferedImage;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+<<<<<<< Updated upstream
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.HealthBar;
@@ -45,6 +46,11 @@ import net.runelite.api.events.PostClientTick;
 import net.runelite.api.events.PostHealthBar;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.widgets.Widget;
+=======
+import net.runelite.api.*;
+import net.runelite.api.events.*;
+import net.runelite.api.widgets.*;
+>>>>>>> Stashed changes
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -77,6 +83,14 @@ public class InterfaceStylesPlugin extends Plugin
 
 	private SpritePixels[] defaultCrossSprites;
 
+	private boolean needMinimapUpdate = true;
+
+	private final Point FIXED_MINIMAP_LOCATION_CUSTOM = new Point(52,3);
+	private final Point FIXED_MINIMAP_LOCATION = new Point(54,5);
+
+	private final Point FIXED_COMPASS_LOCATION_CUSTOM = new Point(27,1);
+	private final Point FIXED_COMPASS_LOCATION = new Point(29,0);
+
 	@Provides
 	InterfaceStylesConfig provideConfig(ConfigManager configManager)
 	{
@@ -98,6 +112,7 @@ public class InterfaceStylesPlugin extends Plugin
 			removeGameframe();
 			restoreHealthBars();
 			restoreCrossSprites();
+			needMinimapUpdate = true;
 		});
 	}
 
@@ -107,6 +122,10 @@ public class InterfaceStylesPlugin extends Plugin
 		if (gameStateChanged.getGameState() == GameState.STARTING)
 		{
 			queueUpdateAllOverrides();
+		}
+		if (gameStateChanged.getGameState() == GameState.LOGIN_SCREEN)
+		{
+			needMinimapUpdate = true;
 		}
 	}
 
@@ -199,6 +218,17 @@ public class InterfaceStylesPlugin extends Plugin
 	public void onPostClientTick(PostClientTick event)
 	{
 		adjustWidgetDimensions();
+		if (needMinimapUpdate) {
+			updateMinimap();
+		}
+	}
+	@Subscribe
+	public void onResizeableChanged(ResizeableChanged event)
+	{
+		if (!event.isResized())
+		{
+			needMinimapUpdate = true;
+		}
 	}
 
 	@Subscribe
@@ -229,6 +259,52 @@ public class InterfaceStylesPlugin extends Plugin
 		adjustWidgetDimensions();
 		overrideHealthBars();
 		overrideCrossSprites();
+		updateMinimap();
+	}
+
+	private void updateMinimap()
+	{
+
+		final int groupId = WidgetUtil.componentToInterface(ComponentID.FIXED_VIEWPORT_MINIMAP_DRAW_AREA);
+		final int childId = WidgetUtil.componentToId(ComponentID.FIXED_VIEWPORT_MINIMAP_DRAW_AREA);
+
+
+
+		System.out.println("Group: " + groupId + " Child: " + childId);
+
+		Widget widgetMinimap = client.getWidget(ComponentID.FIXED_VIEWPORT_MINIMAP_DRAW_AREA);
+		if (widgetMinimap != null && client.getGameState() == GameState.LOGGED_IN)
+		{
+			System.out.println("UPDATE");
+			if (config.skin().equals(Skin.AROUND_2010)) {
+				widgetMinimap.setSpriteId(SpriteID.RESIZEABLE_MODE_MINIMAP_ALPHA_MASK);
+				widgetMinimap.setOriginalX(FIXED_MINIMAP_LOCATION_CUSTOM.getX());
+				widgetMinimap.setOriginalY(FIXED_MINIMAP_LOCATION_CUSTOM.getY());
+			} else {
+				widgetMinimap.setSpriteId(SpriteID.FIXED_MODE_MINIMAP_ALPHA_MASK);
+				widgetMinimap.setOriginalX(FIXED_MINIMAP_LOCATION.getX());
+				widgetMinimap.setOriginalY(FIXED_MINIMAP_LOCATION.getY());
+			}
+			widgetMinimap.revalidate();
+			needMinimapUpdate = false;
+		}
+		Widget widgetCompass = client.getWidget(ComponentID.FIXED_VIEWPORT_MINIMAP_COMPASS);
+		if (widgetCompass != null && client.getGameState() == GameState.LOGGED_IN)
+		{
+			System.out.println("UPDATE");
+			if (config.skin().equals(Skin.AROUND_2010)) {
+				widgetCompass.setSpriteId(SpriteID.RESIZEABLE_MODE_COMPASS_ALPHA_MASK);
+				widgetCompass.setOriginalX(FIXED_COMPASS_LOCATION_CUSTOM.getX());
+				widgetCompass.setOriginalY(FIXED_COMPASS_LOCATION_CUSTOM.getY());
+			} else {
+				widgetCompass.setSpriteId(SpriteID.FIXED_MODE_COMPASS_ALPHA_MASK);
+				widgetCompass.setOriginalX(FIXED_COMPASS_LOCATION.getX());
+				widgetCompass.setOriginalY(FIXED_COMPASS_LOCATION.getY());
+			}
+			widgetCompass.revalidate();
+			needMinimapUpdate = false;
+		}
+
 	}
 
 	@Subscribe

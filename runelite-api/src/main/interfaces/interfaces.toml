@@ -295,6 +295,82 @@ emote_scrollbar=4
 [equipment]
 id=387
 inventory_item_container=0
+stats=1
+price=3
+death=5
+call=7
+
+head=15
+cape=16
+amulet=17
+ammo=25
+weapon=18
+chest=19
+shield=20
+legs=21
+gloves=22
+boots=23
+ring=24
+
+[statement_chat]
+id=229
+continue=2
+result=1
+
+[statement_item]
+id=193
+event=0
+item=1
+message=2
+
+[npc_chat]
+id=231
+head=2
+title=4
+message=6
+continue=5
+event=4
+
+[player_chat]
+id=217
+head=2
+title=4
+message=6
+continue=5
+event=3
+
+[equipment_stats]
+id=84
+head=10
+cape=11
+amulet=12
+ammo=20
+weapon=13
+chest=14
+shield=15
+legs=16
+gloves=17
+boots=18
+ring=19
+
+stab=23
+slash=24
+crush=25
+magic=26
+range=27
+base=52
+actual=53
+stab1=29
+slash1=30
+crush1=31
+range1=33
+magic1=32
+melee_str=35
+range_str=36
+magic_dmg=37
+prayer=38
+undead=40
+slayer=41
 
 [equipment_bonuses]
 id=84
@@ -304,6 +380,18 @@ stat_bonus=48
 
 [equipment_inventory]
 id=85
+head=15
+cape=16
+amulet=17
+ammo=25
+weapon=18
+chest=19
+shield=20
+legs=21
+gloves=22
+boots=23
+ring=24
+
 
 [experience_tracker]
 id=122
@@ -330,6 +418,7 @@ scrollbar=152
 id=548
 minimap=8
 root_interface_container=16
+minimap_compass=20
 minimap_draw_area=21
 fixed_viewport=32
 multicombat_indicator=36
@@ -368,6 +457,15 @@ inventory_container=83
 [fossil_island_oxygen_bar]
 id=609
 bar=1
+
+[clan_chat]
+id=707
+
+[account_management]
+id=109
+
+[quest_root]
+id=629
 
 [friend_list]
 id=429
@@ -520,7 +618,7 @@ message_of_the_day=6
 [logout_panel]
 id=182
 world_switcher_button=3
-logout_button=6
+logout_button=8
 
 [looting_bag]
 id=81
@@ -529,6 +627,7 @@ looting_bag_inventory=5
 [minigames]
 id=160
 teleport_button=30
+spec=35
 
 [minimap]
 id=160
@@ -618,6 +717,7 @@ container=0
 
 [prayer]
 id=541
+filtering=42
 
 [private_chat]
 id=163
@@ -650,6 +750,8 @@ container=2
 [quick_prayer]
 id=77
 prayers=4
+container=4
+done=5
 
 [raids]
 id=513
@@ -707,6 +809,7 @@ minimap_orb_holder=33
 logout_button_overlay=34
 minimap_logout_button=35
 fc_icon=44
+account_icon=45
 friend_icon=46
 settings_icon=47
 emote_icon=48
@@ -758,8 +861,26 @@ id=116
 camera_zoom_slider_track=57
 music_slider=92
 music_slider_step_holder=104
+sound_effect_slider_step_holder=118
+area_slider_step_holder=113
 sound_effect_slider=106
 area_sound_slider=120
+run_button=30
+mute_music=93
+mute_sound=118
+mute_area=122
+unlock_message=121
+pk_skull_prevention=5
+player_attack_options=38
+npc_attack_options=39
+accept_aid=29
+house_options=31
+bond_pouch=3
+display_mode=41
+disable_zoom=44
+
+[xp_drops]
+id=137
 
 [shop]
 id=300
@@ -797,6 +918,7 @@ edgeville_home_teleport=100
 lunar_home_teleport=101
 arceuus_home_teleport=145
 fertile_soil=126
+filter=195
 
 [tempoross]
 id=437
@@ -890,6 +1012,7 @@ bottom_bar=23
 search=26
 surface_selector=34
 tooltip=41
+close=38
 
 [world_switcher]
 id=69
