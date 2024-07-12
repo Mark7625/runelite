@@ -205,10 +205,10 @@ public class MapImageDumper
 			{
 				BufferedImage image = dumper.drawMap(i);
 
-				String filename = "img-" + i + ".png";
+				String filename = "normal-img-" + i + ".png";
 
 				if (withObjectData) {
-					filename = "objectdata-img-" + i + ".png";
+					filename = "objects-img-" + i + ".png";
 				}
 
 				File imageFile = new File(outDir, filename);
