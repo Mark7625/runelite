@@ -123,7 +123,7 @@ public class MapImageDumper
 
 	@Getter
 	@Setter
-	private boolean renderLabels = true;
+	private boolean renderLabels = false;
 
 	@Getter
 	@Setter
@@ -132,6 +132,10 @@ public class MapImageDumper
 	@Getter
 	@Setter
 	private boolean lowMemory = true;
+
+	@Getter
+	@Setter
+	private boolean withObjectData = false;
 
 	public MapImageDumper(Store store, KeyProvider keyProvider)
 	{
@@ -151,10 +155,14 @@ public class MapImageDumper
 
 	public static void main(String[] args) throws IOException
 	{
+
+		System.out.println(Arrays.toString(args));
+
 		Options options = new Options();
 		options.addOption(Option.builder().longOpt("cachedir").hasArg().required().build());
 		options.addOption(Option.builder().longOpt("xteapath").hasArg().required().build());
 		options.addOption(Option.builder().longOpt("outputdir").hasArg().required().build());
+		options.addOption(Option.builder().longOpt("withObjectData").hasArg().required().build());
 
 		CommandLineParser parser = new DefaultParser();
 		CommandLine cmd;
@@ -164,6 +172,7 @@ public class MapImageDumper
 		}
 		catch (ParseException ex)
 		{
+
 			System.err.println("Error parsing command line options: " + ex.getMessage());
 			System.exit(-1);
 			return;
@@ -172,6 +181,7 @@ public class MapImageDumper
 		final String cacheDirectory = cmd.getOptionValue("cachedir");
 		final String xteaJSONPath = cmd.getOptionValue("xteapath");
 		final String outputDirectory = cmd.getOptionValue("outputdir");
+		final Boolean withObjectData = Boolean.valueOf(cmd.getOptionValue("withObjectData"));
 
 		XteaKeyManager xteaKeyManager = new XteaKeyManager();
 		try (FileInputStream fin = new FileInputStream(xteaJSONPath))
@@ -188,13 +198,20 @@ public class MapImageDumper
 			store.load();
 
 			MapImageDumper dumper = new MapImageDumper(store, xteaKeyManager);
+			dumper.setWithObjectData(withObjectData);
 			dumper.load();
 
 			for (int i = 0; i < Region.Z; ++i)
 			{
 				BufferedImage image = dumper.drawMap(i);
 
-				File imageFile = new File(outDir, "img-" + i + ".png");
+				String filename = "img-" + i + ".png";
+
+				if (withObjectData) {
+					filename = "objectdata-img-" + i + ".png";
+				}
+
+				File imageFile = new File(outDir, filename);
 
 				ImageIO.write(image, "png", imageFile);
 				log.info("Wrote image {}", imageFile);
@@ -870,6 +887,68 @@ public class MapImageDumper
 		}
 	}
 
+	private void drawObjectsBlocking(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z)
+	{
+		if (!withObjectData)
+		{
+			return;
+		}
+		Graphics2D g2d = image.createGraphics();
+
+		List<Location> planeLocs = new ArrayList<>();
+		List<Location> pushDownLocs = new ArrayList<>();
+		List<List<Location>> layers = Arrays.asList(planeLocs, pushDownLocs);
+		for (int localX = 0; localX < Region.X; localX++)
+		{
+			int regionX = localX + region.getBaseX();
+			for (int localY = 0; localY < Region.Y; localY++)
+			{
+				int regionY = localY + region.getBaseY();
+
+				planeLocs.clear();
+				pushDownLocs.clear();
+				boolean isBridge = (region.getTileSetting(1, localX, localY) & 2) != 0;
+				int tileZ = z + (isBridge ? 1 : 0);
+
+				for (Location loc : region.getLocations())
+				{
+					Position pos = loc.getPosition();
+					if (pos.getX() != regionX || pos.getY() != regionY)
+					{
+						continue;
+					}
+
+					if (pos.getZ() == tileZ && (region.getTileSetting(z, localX, localY) & 24) == 0)
+					{
+						planeLocs.add(loc);
+					}
+					else if (z < 3 && pos.getZ() == tileZ + 1 && (region.getTileSetting(z + 1, localX, localY) & 8) != 0)
+					{
+						pushDownLocs.add(loc);
+					}
+				}
+
+				for (List<Location> locs : layers)
+				{
+
+					for (Location location : locs)
+					{
+						ObjectDefinition object = findObject(location.getId());
+						if (object.isBlocksProjectile()) {
+							int drawX = (drawBaseX + localX) * MAP_SCALE;
+							int drawY = (drawBaseY + (Region.Y - object.getSizeY() - localY)) * MAP_SCALE;
+							Color transparentRed = new Color(255, 0, 0, 128);
+							g2d.setColor(transparentRed);
+							g2d.fillRect(drawX, drawY, MAP_SCALE, MAP_SCALE);
+						}
+					}
+
+				}
+			}
+		}
+		g2d.dispose();
+	}
+
 	private void drawObjects(BufferedImage image, int z)
 	{
 		for (Region region : regionLoader.getRegions())
@@ -885,6 +964,7 @@ public class MapImageDumper
 			int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
 
 			drawObjects(image, drawBaseX, drawBaseY, region, z);
+			drawObjectsBlocking(image,drawBaseX,drawBaseY,region,z);
 		}
 	}
 
