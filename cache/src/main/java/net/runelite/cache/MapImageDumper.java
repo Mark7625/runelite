@@ -29,9 +29,13 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
 import javax.imageio.ImageIO;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -119,7 +123,7 @@ public class MapImageDumper
 
 	@Getter
 	@Setter
-	private boolean renderLabels = true;
+	private boolean renderLabels = false;
 
 	@Getter
 	@Setter
@@ -134,6 +138,8 @@ public class MapImageDumper
 	private MapDumpType mapDumpType = MapDumpType.NORMAL;
 
 	private final List<Integer> mainlandRegionIds = new ArrayList<>();
+
+	private final List<LabelData> worldLabels = new ArrayList<>();
 
 	public MapImageDumper(Store store, KeyProvider keyProvider)
 	{
@@ -162,6 +168,7 @@ public class MapImageDumper
 		options.addOption(Option.builder().longOpt("xteapath").hasArg().required().build());
 		options.addOption(Option.builder().longOpt("outputdir").hasArg().required().build());
 		options.addOption(Option.builder().longOpt("dumptype").hasArg().required().build());
+		options.addOption(Option.builder().longOpt("locationdir").hasArg().required().build());
 
 		CommandLineParser parser = new DefaultParser();
 		CommandLine cmd;
@@ -180,6 +187,7 @@ public class MapImageDumper
 		final String cacheDirectory = cmd.getOptionValue("cachedir");
 		final String xteaJSONPath = cmd.getOptionValue("xteapath");
 		final String outputDirectory = cmd.getOptionValue("outputdir");
+		final String locationDirectory = cmd.getOptionValue("locationdir");
 		final MapDumpType dumptype = MapDumpType.valueOf(cmd.getOptionValue("dumptype").toUpperCase());
 
 		XteaKeyManager xteaKeyManager = new XteaKeyManager();
@@ -210,6 +218,20 @@ public class MapImageDumper
 				ImageIO.write(image, "png", imageFile);
 				log.info("Wrote image {}", imageFile);
 			}
+			// Create a map to hold the list of LabelData under the "locations" key
+			Map<String, List<LabelData>> map = new HashMap<>();
+			map.put("locations", dumper.worldLabels);
+
+
+			Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
+			// Serialize the map to JSON and save it to a file
+			try (FileWriter writer = new FileWriter(new File(locationDirectory,"/locations.json"))) {
+				gson.toJson(map, writer);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+
 		}
 	}
 
@@ -337,6 +359,7 @@ public class MapImageDumper
 		drawObjects(image, z);
 		drawMapIcons(image, z);
 		drawMapLabels(image, z);
+		dumpMapLabels(z);
 
 		return image;
 	}
@@ -1118,6 +1141,27 @@ public class MapImageDumper
 		}
 	}
 
+	private void dumpMapLabels(int z)
+	{
+
+		String[] fontSizesNames = new String[] { "default",  "medium",  "large" };
+		List<WorldMapElementDefinition> elements = worldMapManager.getElements();
+		for (WorldMapElementDefinition element : elements)
+		{
+			AreaDefinition area = areas.getArea(element.getAreaDefinitionId());
+			Position worldPosition = element.getWorldPosition();
+			if (area == null || area.getName() == null || worldPosition.getZ() != z)
+			{
+				continue;
+			}
+
+			String fontSizeName = fontSizesNames[area.getTextScale()];
+			String areaLabel = area.getName().replace("<br>"," ");
+
+			worldLabels.add(new LabelData(areaLabel, new int[]{worldPosition.getX(), worldPosition.getY(), z},fontSizeName));
+		}
+	}
+
 	private ObjectDefinition findObject(int id)
 	{
 		return objectManager.getObject(id);
@@ -1259,30 +1303,7 @@ public class MapImageDumper
 			}
 		}
 
-		// Draw the intermap link icons which are not stored with the map locations
-		List<WorldMapElementDefinition> elements = worldMapManager.getElements();
-		for (WorldMapElementDefinition element : elements)
-		{
-			AreaDefinition area = areas.getArea(element.getAreaDefinitionId());
-			Position worldPosition = element.getWorldPosition();
-			int regionX = worldPosition.getX() / Region.X;
-			int regionY = worldPosition.getY() / Region.Y;
 
-			if (area == null || area.getName() != null || worldPosition.getZ() != z || regionX != region.getRegionX() || regionY != region.getRegionY())
-			{
-				continue;
-			}
-
-			int localX = worldPosition.getX() - region.getBaseX();
-			int localY = worldPosition.getY() - region.getBaseY();
-			int drawX = drawBaseX + localX;
-			int drawY = drawBaseY + (Region.Y - 1 - localY);
-			SpriteDefinition sprite = sprites.findSprite(area.spriteId, 0);
-			blitIcon(img,
-					(drawX * MAP_SCALE) - (sprite.getMaxWidth() / 2),
-					(drawY * MAP_SCALE) - (sprite.getMaxHeight() / 2),
-					sprite);
-		}
 	}
 
 	private void loadRegions() throws IOException

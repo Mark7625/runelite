@@ -26,23 +26,45 @@ package net.runelite.cache;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.cache.fs.Store;
 import net.runelite.cache.region.Region;
 import net.runelite.cache.region.RegionLoader;
 import net.runelite.cache.util.KeyProvider;
+import net.runelite.cache.util.XteaKeyManager;
+import org.apache.commons.cli.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.ImageIO;
+
+@Slf4j
 public class HeightMapDumper
 {
 	private static final Logger logger = LoggerFactory.getLogger(HeightMapDumper.class);
 
-	private static final int MAP_SCALE = 1;
+	private static final int MAP_SCALE = 4;
 	private static final float MAX_HEIGHT = 2048f;
 
 	private final Store store;
 	private RegionLoader regionLoader;
+
+	@Getter
+	@Setter
+	private MapDumpType mapDumpType = MapDumpType.NORMAL;
 
 	public HeightMapDumper(Store store)
 	{
@@ -54,6 +76,68 @@ public class HeightMapDumper
 		regionLoader = new RegionLoader(store, keyProvider);
 		regionLoader.loadRegions();
 		regionLoader.calculateBounds();
+	}
+
+	public static void main(String[] args) throws IOException
+	{
+
+		System.out.println(Arrays.toString(args));
+
+		Options options = new Options();
+		options.addOption(Option.builder().longOpt("cachedir").hasArg().required().build());
+		options.addOption(Option.builder().longOpt("xteapath").hasArg().required().build());
+		options.addOption(Option.builder().longOpt("outputdir").hasArg().required().build());
+		options.addOption(Option.builder().longOpt("dumptype").hasArg().required().build());
+		options.addOption(Option.builder().longOpt("locationdir").hasArg().required().build());
+
+		CommandLineParser parser = new DefaultParser();
+		CommandLine cmd;
+		try
+		{
+			cmd = parser.parse(options, args);
+		}
+		catch (ParseException ex)
+		{
+
+			System.err.println("Error parsing command line options: " + ex.getMessage());
+			System.exit(-1);
+			return;
+		}
+
+		final String cacheDirectory = cmd.getOptionValue("cachedir");
+		final String xteaJSONPath = cmd.getOptionValue("xteapath");
+		final String outputDirectory = cmd.getOptionValue("outputdir");
+		final String locationDirectory = cmd.getOptionValue("locationdir");
+		final MapDumpType dumptype = MapDumpType.valueOf(cmd.getOptionValue("dumptype").toUpperCase());
+
+		XteaKeyManager xteaKeyManager = new XteaKeyManager();
+		try (FileInputStream fin = new FileInputStream(xteaJSONPath))
+		{
+			xteaKeyManager.loadKeys(fin);
+		}
+
+		File base = new File(cacheDirectory);
+		File outDir = new File(outputDirectory);
+		outDir.mkdirs();
+
+		try (Store store = new Store(base))
+		{
+			store.load();
+
+			HeightMapDumper dumper = new HeightMapDumper(store);
+			dumper.load(xteaKeyManager);
+			dumper.setMapDumpType(dumptype);
+
+			for (int i = 0; i < Region.Z; ++i)
+			{
+				BufferedImage image = dumper.drawHeightMap(i);
+
+				File imageFile = new File(outDir, dumper.getMapDumpType().getFormattedString() + "-img-" + i + ".png");
+
+				ImageIO.write(image, "png", imageFile);
+				log.info("Wrote image {}", imageFile);
+			}
+		}
 	}
 
 	public BufferedImage drawHeightMap(int z)
@@ -118,20 +202,20 @@ public class HeightMapDumper
 				}
 			}
 		}
-		System.out.println("max " + max);
-		System.out.println("min " + min);
 	}
 
-	private int toColor(int height)
-	{
-		// height seems to be between -2040 and 0, inclusive
-		height = -height;
-		// Convert to between 0 and 1
-		float color = (float) height / MAX_HEIGHT;
+	public int toColor(int height) {
+		int red = ((-height) & 0xFF);
+		int green = ((-height) >> 8 & 0xFF);
+		int blue = ((-height) >> 16 & 0xFF);
 
-		assert color >= 0.0f && color <= 1.0f;
+		int red1 = (int) (red * 0.299);
+		int green1 = (int) (green * 0.587);
+		int blue1 = (int) (blue * 0.114);
+		int grayscale = red1 + green1 + blue1;
+		Color newColor = new Color(grayscale, grayscale, grayscale);
+		return newColor.getRGB();
 
-		return new Color(color, color, color).getRGB();
 	}
 
 	private void drawMapSquare(BufferedImage image, int x, int y, int rgb)
