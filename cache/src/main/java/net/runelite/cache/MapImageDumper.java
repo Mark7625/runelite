@@ -30,11 +30,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import javax.imageio.ImageIO;
 import lombok.Getter;
 import lombok.Setter;
@@ -123,7 +119,7 @@ public class MapImageDumper
 
 	@Getter
 	@Setter
-	private boolean renderLabels = false;
+	private boolean renderLabels = true;
 
 	@Getter
 	@Setter
@@ -135,7 +131,9 @@ public class MapImageDumper
 
 	@Getter
 	@Setter
-	private boolean withObjectData = false;
+	private MapDumpType mapDumpType = MapDumpType.NORMAL;
+
+	private final List<Integer> mainlandRegionIds = new ArrayList<>();
 
 	public MapImageDumper(Store store, KeyProvider keyProvider)
 	{
@@ -153,6 +151,7 @@ public class MapImageDumper
 		this.objectManager = new ObjectManager(store);
 	}
 
+
 	public static void main(String[] args) throws IOException
 	{
 
@@ -162,7 +161,7 @@ public class MapImageDumper
 		options.addOption(Option.builder().longOpt("cachedir").hasArg().required().build());
 		options.addOption(Option.builder().longOpt("xteapath").hasArg().required().build());
 		options.addOption(Option.builder().longOpt("outputdir").hasArg().required().build());
-		options.addOption(Option.builder().longOpt("withObjectData").hasArg().required().build());
+		options.addOption(Option.builder().longOpt("dumptype").hasArg().required().build());
 
 		CommandLineParser parser = new DefaultParser();
 		CommandLine cmd;
@@ -181,7 +180,7 @@ public class MapImageDumper
 		final String cacheDirectory = cmd.getOptionValue("cachedir");
 		final String xteaJSONPath = cmd.getOptionValue("xteapath");
 		final String outputDirectory = cmd.getOptionValue("outputdir");
-		final Boolean withObjectData = Boolean.valueOf(cmd.getOptionValue("withObjectData"));
+		final MapDumpType dumptype = MapDumpType.valueOf(cmd.getOptionValue("dumptype").toUpperCase());
 
 		XteaKeyManager xteaKeyManager = new XteaKeyManager();
 		try (FileInputStream fin = new FileInputStream(xteaJSONPath))
@@ -198,25 +197,80 @@ public class MapImageDumper
 			store.load();
 
 			MapImageDumper dumper = new MapImageDumper(store, xteaKeyManager);
-			dumper.setWithObjectData(withObjectData);
+			dumper.setMapDumpType(dumptype);
 			dumper.load();
+			dumper.getRegionIDsInRange();
 
 			for (int i = 0; i < Region.Z; ++i)
 			{
 				BufferedImage image = dumper.drawMap(i);
 
-				String filename = "normal-img-" + i + ".png";
-
-				if (withObjectData) {
-					filename = "objects-img-" + i + ".png";
-				}
-
-				File imageFile = new File(outDir, filename);
+				File imageFile = new File(outDir, dumper.getMapDumpType().getFormattedString() + "-img-" + i + ".png");
 
 				ImageIO.write(image, "png", imageFile);
 				log.info("Wrote image {}", imageFile);
 			}
 		}
+	}
+
+	public void getRegionIDsInRange() {
+		final int range = 25; // Fixed range of 25
+		Set<Integer> regionIDSet = new HashSet<>();
+		List<Integer> startIDs = List.of(4160,
+				4416,
+				4672,
+				4928,
+				5184,
+				5440,
+				5696,
+				5952,
+				6208,
+				6464,
+				6720,
+				6976,
+				7232,
+				7488,
+				7744,
+				8000,
+				8256,
+				8512,
+				8768,
+				9024,
+				9280,
+				9536,
+				9792,
+				10048,
+				10304,
+				10560,
+				10816,
+				11072,
+				11328,
+				11584,
+				11840,
+				12096,
+				12352,
+				12608,
+				12864,
+				13120,
+				13376,
+				13632,
+				13888,
+				14144,
+				14400,
+				14656,
+				14912,
+				15168,
+				15424,
+				15680);
+		for (int startID : startIDs) {
+			for (int i = startID; i > startID - range; i--) {
+				regionIDSet.add(i);
+			}
+		}
+
+		mainlandRegionIds.clear();
+		mainlandRegionIds.addAll(regionIDSet);
+		Collections.sort(mainlandRegionIds);
 	}
 
 	protected double random()
@@ -889,7 +943,7 @@ public class MapImageDumper
 
 	private void drawObjectsBlocking(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z)
 	{
-		if (!withObjectData)
+		if (mapDumpType != MapDumpType.OBJECTS || mainlandRegionIds.contains(region.getRegionID()))
 		{
 			return;
 		}
@@ -901,6 +955,7 @@ public class MapImageDumper
 		for (int localX = 0; localX < Region.X; localX++)
 		{
 			int regionX = localX + region.getBaseX();
+
 			for (int localY = 0; localY < Region.Y; localY++)
 			{
 				int regionY = localY + region.getBaseY();
