@@ -150,7 +150,7 @@ class ConfigPanel extends PluginPanel
 
 	private PluginConfigurationDescriptor pluginConfig = null;
 
-	private boolean developerMode;
+	private final boolean developerMode;
 
 	@Inject
 	private ConfigPanel(
