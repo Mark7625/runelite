@@ -40,4 +40,7 @@ public @interface ConfigSection
 	int position();
 
 	boolean closedByDefault() default false;
+
+	boolean developmentModeOnly() default false;
+
 }
