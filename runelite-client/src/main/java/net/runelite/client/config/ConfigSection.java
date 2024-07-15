@@ -42,5 +42,4 @@ public @interface ConfigSection
 	boolean closedByDefault() default false;
 
 	boolean developmentModeOnly() default false;
-
 }
