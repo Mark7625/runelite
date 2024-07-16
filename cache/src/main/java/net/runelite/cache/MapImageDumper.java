@@ -40,13 +40,8 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.cache.definitions.AreaDefinition;
-import net.runelite.cache.definitions.FontDefinition;
-import net.runelite.cache.definitions.ObjectDefinition;
-import net.runelite.cache.definitions.OverlayDefinition;
-import net.runelite.cache.definitions.SpriteDefinition;
-import net.runelite.cache.definitions.UnderlayDefinition;
-import net.runelite.cache.definitions.WorldMapElementDefinition;
+import net.runelite.cache.definitions.*;
+import net.runelite.cache.definitions.loaders.ModelLoader;
 import net.runelite.cache.definitions.loaders.OverlayLoader;
 import net.runelite.cache.definitions.loaders.SpriteLoader;
 import net.runelite.cache.definitions.loaders.UnderlayLoader;
@@ -141,6 +136,8 @@ public class MapImageDumper
 
 	private final List<LabelData> worldLabels = new ArrayList<>();
 
+	private Map<Integer, String> modelColors = new HashMap<>();
+
 	public MapImageDumper(Store store, KeyProvider keyProvider)
 	{
 		this(store, new RegionLoader(store, keyProvider));
@@ -155,8 +152,42 @@ public class MapImageDumper
 		this.fonts = new FontManager(store);
 		this.worldMapManager = new WorldMapManager(store);
 		this.objectManager = new ObjectManager(store);
+		this.modelColors = extractModelColors(store);
 	}
 
+	public Map<Integer, String> extractModelColors(Store store) {
+		Map<Integer, String> hashMap = new HashMap<>();
+		try {
+			for (Archive archive : store.getIndex(IndexType.MODELS).getArchives()) {
+				byte[] contents = archive.decompress(store.getStorage().loadArchive(archive));
+
+				ModelLoader loader = new ModelLoader();
+				loader.load(archive.getArchiveId(), contents);
+				ModelDefinition model = loader.load(archive.getArchiveId(), contents);
+
+				if (model.faceCount <= 2) {
+					for (short faceColor : model.faceColors) {
+						int rgb = JagexColor.HSLtoRGB(faceColor, 0.9);
+						double r = ((rgb >> 16) & 0xff) / 255.0;
+						double g = ((rgb >> 8) & 0xff) / 255.0;
+						double b = (rgb & 0xff) / 255.0;
+
+						int red = (int) (r * 255);
+						int green = (int) (g * 255);
+						int blue = (int) (b * 255);
+
+						// Convert to hex
+						String hexColor = String.format("#%02X%02X%02X", red, green, blue);
+						hashMap.put(archive.getArchiveId(), hexColor);
+					}
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		return hashMap;
+	}
 
 	public static void main(String[] args) throws IOException
 	{
@@ -1027,6 +1058,85 @@ public class MapImageDumper
 		g2d.dispose();
 	}
 
+	private void drawObjectsInvisTiles(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z)
+	{
+		if (mapDumpType == MapDumpType.HEIGHT || mainlandRegionIds.contains(region.getRegionID()))
+		{
+			return;
+		}
+		Graphics2D g2d = image.createGraphics();
+
+		List<Location> planeLocs = new ArrayList<>();
+		List<Location> pushDownLocs = new ArrayList<>();
+		List<List<Location>> layers = Arrays.asList(planeLocs, pushDownLocs);
+		for (int localX = 0; localX < Region.X; localX++)
+		{
+			int regionX = localX + region.getBaseX();
+
+			for (int localY = 0; localY < Region.Y; localY++)
+			{
+				int regionY = localY + region.getBaseY();
+
+				planeLocs.clear();
+				pushDownLocs.clear();
+				boolean isBridge = (region.getTileSetting(1, localX, localY) & 2) != 0;
+				int tileZ = z + (isBridge ? 1 : 0);
+
+				for (Location loc : region.getLocations())
+				{
+					Position pos = loc.getPosition();
+					if (pos.getX() != regionX || pos.getY() != regionY)
+					{
+						continue;
+					}
+
+					if (pos.getZ() == tileZ && (region.getTileSetting(z, localX, localY) & 24) == 0)
+					{
+						planeLocs.add(loc);
+					}
+					else if (z < 3 && pos.getZ() == tileZ + 1 && (region.getTileSetting(z + 1, localX, localY) & 8) != 0)
+					{
+						pushDownLocs.add(loc);
+					}
+				}
+
+				for (List<Location> locs : layers)
+				{
+
+					for (Location location : locs)
+					{
+						ObjectDefinition object = findObject(location.getId());
+						String hiddenColorHex = getHiddenColorHex(object, modelColors);
+
+						if (!hiddenColorHex.isEmpty()) {
+							int drawX = (drawBaseX + localX) * MAP_SCALE;
+							int drawY = (drawBaseY + (Region.Y - object.getSizeY() - localY)) * MAP_SCALE;
+							Color hiddenColor = Color.decode(hiddenColorHex);
+							g2d.setColor(hiddenColor);
+							g2d.fillRect(drawX, drawY, MAP_SCALE, MAP_SCALE);
+						}
+					}
+
+				}
+			}
+		}
+		g2d.dispose();
+	}
+
+	private String getHiddenColorHex(ObjectDefinition object, Map<Integer, String> modelColors) {
+		if (object == null || object.getObjectModels() == null) {
+			return "";
+		}
+
+		for (int objectModel : object.getObjectModels()) {
+			if (modelColors.containsKey(objectModel)) {
+				return modelColors.get(objectModel);
+			}
+		}
+		return "";
+	}
+
+
 	private void drawObjects(BufferedImage image, int z)
 	{
 		for (Region region : regionLoader.getRegions())
@@ -1043,6 +1153,7 @@ public class MapImageDumper
 
 			drawObjects(image, drawBaseX, drawBaseY, region, z);
 			drawObjectsBlocking(image,drawBaseX,drawBaseY,region,z);
+			drawObjectsInvisTiles(image,drawBaseX,drawBaseY,region,z);
 		}
 	}
 
@@ -1252,6 +1363,10 @@ public class MapImageDumper
 
 	private void drawMapSquare(int[][] pixels, int x, int y, int rgb)
 	{
+		int finalRBG = rgb;
+		if (rgb == 0 && mapDumpType == MapDumpType.OBJECTS) {
+			finalRBG = Color.MAGENTA.getRGB();
+		}
 		x *= MAP_SCALE;
 		y *= MAP_SCALE;
 
@@ -1259,7 +1374,7 @@ public class MapImageDumper
 		{
 			for (int j = 0; j < MAP_SCALE; ++j)
 			{
-				pixels[x + i][y + j] = rgb;
+				pixels[x + i][y + j] = finalRBG;
 			}
 		}
 	}

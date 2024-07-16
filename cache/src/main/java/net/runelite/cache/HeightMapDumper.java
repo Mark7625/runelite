@@ -205,19 +205,15 @@ public class HeightMapDumper
 	}
 
 	public int toColor(int height) {
-		int red = ((-height) & 0xFF);
-		int green = ((-height) >> 8 & 0xFF);
-		int blue = ((-height) >> 16 & 0xFF);
+		float normalizedHeight = (float) height / MAX_HEIGHT; // Normalize height between 0 and 1
 
-		int red1 = (int) (red * 0.299);
-		int green1 = (int) (green * 0.587);
-		int blue1 = (int) (blue * 0.114);
-		int grayscale = red1 + green1 + blue1;
-		Color newColor = new Color(grayscale, grayscale, grayscale);
-		return newColor.getRGB();
+		// Example gradient from blue (low) to green (mid) to brown (high)
+		int red = (int) (normalizedHeight * 255);
+		int green = (int) ((1 - normalizedHeight) * 255);
+		int blue = (int) (normalizedHeight * 128);
 
+		return new Color(red, green, blue).getRGB();
 	}
-
 	private void drawMapSquare(BufferedImage image, int x, int y, int rgb)
 	{
 		x *= MAP_SCALE;
