@@ -1078,7 +1078,6 @@ public class MapImageDumper
 				int regionY = localY + region.getBaseY();
 
 				planeLocs.clear();
-				pushDownLocs.clear();
 				boolean isBridge = (region.getTileSetting(1, localX, localY) & 2) != 0;
 				int tileZ = z + (isBridge ? 1 : 0);
 
@@ -1090,13 +1089,9 @@ public class MapImageDumper
 						continue;
 					}
 
-					if (pos.getZ() == tileZ && (region.getTileSetting(z, localX, localY) & 24) == 0)
+					if (pos.getZ() == tileZ)
 					{
 						planeLocs.add(loc);
-					}
-					else if (z < 3 && pos.getZ() == tileZ + 1 && (region.getTileSetting(z + 1, localX, localY) & 8) != 0)
-					{
-						pushDownLocs.add(loc);
 					}
 				}
 
@@ -1111,9 +1106,17 @@ public class MapImageDumper
 						if (!hiddenColorHex.isEmpty()) {
 							int drawX = (drawBaseX + localX) * MAP_SCALE;
 							int drawY = (drawBaseY + (Region.Y - object.getSizeY() - localY)) * MAP_SCALE;
+
+
 							Color hiddenColor = Color.decode(hiddenColorHex);
-							g2d.setColor(hiddenColor);
-							g2d.fillRect(drawX, drawY, MAP_SCALE, MAP_SCALE);
+							int red = hiddenColor.getRed();
+							int green = hiddenColor.getGreen();
+							int blue = hiddenColor.getBlue();
+
+							if (!isWhiteRange(red, green, blue)) {
+								g2d.setColor(hiddenColor);
+								g2d.fillRect(drawX, drawY, MAP_SCALE, MAP_SCALE);
+							}
 						}
 					}
 
@@ -1121,6 +1124,17 @@ public class MapImageDumper
 			}
 		}
 		g2d.dispose();
+	}
+
+	private boolean isWhiteRange(int red, int green, int blue) {
+		// Define the threshold for white color
+		int whiteThreshold = 200; // This value can be adjusted for stricter or looser definition of white
+
+		// Check if all color components are high and nearly equal
+		return (red > whiteThreshold && green > whiteThreshold && blue > whiteThreshold
+				&& Math.abs(red - green) < 30
+				&& Math.abs(green - blue) < 30
+				&& Math.abs(red - blue) < 30);
 	}
 
 	private String getHiddenColorHex(ObjectDefinition object, Map<Integer, String> modelColors) {

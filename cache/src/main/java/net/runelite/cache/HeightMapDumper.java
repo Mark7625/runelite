@@ -205,14 +205,43 @@ public class HeightMapDumper
 	}
 
 	public int toColor(int height) {
-		float normalizedHeight = (float) height / MAX_HEIGHT; // Normalize height between 0 and 1
+		// Convert height from range [-2040, 0] to [0, 2040]
+		height = -height;
 
-		// Example gradient from blue (low) to green (mid) to brown (high)
-		int red = (int) (normalizedHeight * 255);
-		int green = (int) ((1 - normalizedHeight) * 255);
-		int blue = (int) (normalizedHeight * 128);
+		// Normalize height to a value between 0 and 1
+		float normalizedHeight = (float) height / 2040; // 2040 is the max height after converting
 
-		return new Color(red, green, blue).getRGB();
+		// Ensure normalizedHeight is clamped between 0 and 1
+		normalizedHeight = Math.max(0.0f, Math.min(1.0f, normalizedHeight));
+
+		// Define colors for the gradient
+		Color lowColor = Color.BLUE; // Blue at low height (normalizedHeight = 0)
+		Color midColor = Color.GREEN; // Green at mid height (normalizedHeight = 0.5)
+		Color highColor = new Color(139, 69, 19); // Brown at high height (normalizedHeight = 1)
+
+		Color color;
+
+		if (normalizedHeight <= 0.5) {
+			// Interpolate between blue and green
+			float ratio = normalizedHeight * 2; // Scale from 0 to 1
+			color = interpolate(lowColor, midColor, ratio);
+		} else {
+			// Interpolate between green and brown
+			float ratio = (normalizedHeight - 0.5f) * 2; // Scale from 0 to 1
+			color = interpolate(midColor, highColor, ratio);
+		}
+
+		return color.getRGB();
+	}
+
+
+	// Interpolation method
+	private Color interpolate(Color c1, Color c2, float ratio) {
+		int red = (int) (c1.getRed() * (1 - ratio) + c2.getRed() * ratio);
+		int green = (int) (c1.getGreen() * (1 - ratio) + c2.getGreen() * ratio);
+		int blue = (int) (c1.getBlue() * (1 - ratio) + c2.getBlue() * ratio);
+
+		return new Color(red, green, blue);
 	}
 	private void drawMapSquare(BufferedImage image, int x, int y, int rgb)
 	{
